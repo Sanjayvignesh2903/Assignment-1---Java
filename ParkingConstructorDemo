@@ -1,0 +1,132 @@
+import java.time.LocalDateTime;
+
+// 1. Vehicle class: demonstrates default, parameterised, overloaded constructors & constructor chaining
+class Vehicle {
+    private final String regNo;
+    private final String type;
+    private final String ownerName;
+
+    // Default constructor -> chains to 2-arg constructor
+    public Vehicle() {
+        this("UNKNOWN", "CAR");
+    }
+
+    // 2-argument overloaded constructor -> chains to 3-arg constructor
+    public Vehicle(String regNo, String type) {
+        this(regNo, type, "Guest");
+    }
+
+    // Primary parameterised constructor using 'this' to resolve shadowing
+    public Vehicle(String regNo, String type, String ownerName) {
+        this.regNo = regNo;
+        this.type = type;
+        this.ownerName = ownerName;
+    }
+
+    public String getRegNo() { return regNo; }
+    public String getType() { return type; }
+    public String getOwnerName() { return ownerName; }
+
+    @Override
+    public String toString() {
+        return regNo + " (" + type + ", Owner: " + ownerName + ")";
+    }
+}
+
+// 2. ParkingSlot class: demonstrates constructor overloading and 'this' chaining
+class ParkingSlot {
+    private final int floor;
+    private final int slotNumber;
+    private final String allowedType;
+    private boolean occupied;
+
+    // Overloaded constructor: defaults allowedType to "CAR"
+    public ParkingSlot(int floor, int slotNumber) {
+        this(floor, slotNumber, "CAR");
+    }
+
+    // Primary parameterised constructor
+    public ParkingSlot(int floor, int slotNumber, String allowedType) {
+        this.floor = floor;
+        this.slotNumber = slotNumber;
+        this.allowedType = allowedType;
+        this.occupied = false;
+    }
+
+    public void occupy() { this.occupied = true; }
+    public void free() { this.occupied = false; }
+    public boolean isOccupied() { return occupied; }
+
+    @Override
+    public String toString() {
+        return "Floor " + floor + " - Slot " + slotNumber + " [" + allowedType + "]";
+    }
+}
+
+// 3. ParkingTicket class: demonstrates parameterised constructor & copy constructor (duplicate ticket)
+class ParkingTicket {
+    private static int nextId = 1001;
+
+    private final int ticketId;
+    private final Vehicle vehicle;
+    private final ParkingSlot slot;
+    private final LocalDateTime entryTime;
+    private final boolean isDuplicate;
+
+    // Parameterised constructor for a new ticket
+    public ParkingTicket(Vehicle vehicle, ParkingSlot slot) {
+        this.ticketId = nextId++;
+        this.vehicle = vehicle;
+        this.slot = slot;
+        this.entryTime = LocalDateTime.now();
+        this.isDuplicate = false;
+    }
+
+    // Copy constructor: used when re-issuing a lost/duplicate ticket
+    public ParkingTicket(ParkingTicket original) {
+        this.ticketId = original.ticketId;       // retains original ticket ID
+        this.vehicle = original.vehicle;
+        this.slot = original.slot;
+        this.entryTime = original.entryTime;     // retains original entry time for accurate billing
+        this.isDuplicate = true;                 // marks this copy as a duplicate
+    }
+
+    @Override
+    public String toString() {
+        return "Ticket #" + ticketId
+                + (isDuplicate ? " [DUPLICATE]" : " [ORIGINAL]")
+                + " | Vehicle: " + vehicle
+                + " | " + slot;
+    }
+}
+
+// Main class to demonstrate object creation (Stack references -> Heap objects)
+public class ParkingConstructorDemo {
+    public static void main(String[] args) {
+        // Default constructor
+        Vehicle v1 = new Vehicle();
+
+        // 2-argument overloaded constructor (chains to 3-arg with "Guest")
+        Vehicle v2 = new Vehicle("TN10AB1234", "CAR");
+
+        // 3-argument parameterised constructor
+        Vehicle v3 = new Vehicle("TN09XY5678", "BIKE", "Sanjay");
+
+        // Overloaded ParkingSlot constructors
+        ParkingSlot s1 = new ParkingSlot(0, 1);          // defaults to CAR
+        ParkingSlot s2 = new ParkingSlot(1, 3, "BIKE");  // explicit BIKE
+
+        // Create original ticket
+        s1.occupy();
+        ParkingTicket originalTicket = new ParkingTicket(v2, s1);
+
+        // Re-issue a duplicate ticket using the Copy Constructor
+        ParkingTicket duplicateTicket = new ParkingTicket(originalTicket);
+
+        System.out.println("Default Vehicle : " + v1);
+        System.out.println("Named Vehicle   : " + v3);
+        System.out.println("Slot 2          : " + s2);
+        System.out.println(originalTicket);
+        System.out.println(duplicateTicket);
+    }
+}
