@@ -1,0 +1,173 @@
+import java.time.LocalDateTime;
+import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
+
+// 1. Vehicle class: models a parked vehicle
+class Vehicle {
+    private final String regNo;
+    private final String type; // e.g., "CAR", "BIKE"
+
+    public Vehicle(String regNo, String type) {
+        this.regNo = regNo;
+        this.type = type;
+    }
+
+    public String getRegNo() { return regNo; }
+    public String getType() { return type; }
+}
+
+// 2. ParkingSlot class: models a single slot (cannot hold two vehicles)
+class ParkingSlot {
+    private final int slotNumber;
+    private final String allowedType;
+    private Vehicle parkedVehicle;
+
+    public ParkingSlot(int slotNumber, String allowedType) {
+        this.slotNumber = slotNumber;
+        this.allowedType = allowedType;
+        this.parkedVehicle = null;
+    }
+
+    public boolean isAvailable() {
+        return parkedVehicle == null;
+    }
+
+    public boolean canFit(Vehicle v) {
+        return isAvailable() && allowedType.equalsIgnoreCase(v.getType());
+    }
+
+    public void park(Vehicle v) {
+        if (!isAvailable()) {
+            throw new IllegalStateException("Slot " + slotNumber + " is already occupied.");
+        }
+        this.parkedVehicle = v;
+    }
+
+    public Vehicle removeVehicle() {
+        Vehicle v = this.parkedVehicle;
+        this.parkedVehicle = null;
+        return v;
+    }
+
+    public int getSlotNumber() { return slotNumber; }
+    public Vehicle getParkedVehicle() { return parkedVehicle; }
+}
+
+// 3. Ticket class: models a unique parking ticket (ticket number is never reused)
+class Ticket {
+    private static int nextTicketId = 1001;
+
+    private final int ticketId;
+    private final Vehicle vehicle;
+    private final ParkingSlot slot;
+    private final LocalDateTime entryTime;
+    private LocalDateTime exitTime;
+    private double fee;
+
+    public Ticket(Vehicle vehicle, ParkingSlot slot) {
+        this.ticketId = nextTicketId++;
+        this.vehicle = vehicle;
+        this.slot = slot;
+        this.entryTime = LocalDateTime.now();
+    }
+
+    public void closeTicket(double ratePerHour) {
+        this.exitTime = LocalDateTime.now();
+        long hours = Duration.between(entryTime, exitTime).toHours();
+        if (hours == 0) {
+            hours = 1; // Minimum 1-hour charge
+        }
+        this.fee = hours * ratePerHour;
+    }
+
+    public int getTicketId() { return ticketId; }
+    public Vehicle getVehicle() { return vehicle; }
+    public ParkingSlot getSlot() { return slot; }
+    public double getFee() { return fee; }
+}
+
+// 4. ParkingLot class: manages slots, tickets, and business rules
+class ParkingLot {
+    private final List<ParkingSlot> slots = new ArrayList<>();
+    private final List<Ticket> activeTickets = new ArrayList<>();
+
+    public ParkingLot(int carSlots, int bikeSlots) {
+        int slotNo = 1;
+        for (int i = 0; i < carSlots; i++) {
+            slots.add(new ParkingSlot(slotNo++, "CAR"));
+        }
+        for (int i = 0; i < bikeSlots; i++) {
+            slots.add(new ParkingSlot(slotNo++, "BIKE"));
+        }
+    }
+
+    public Ticket parkVehicle(Vehicle vehicle) {
+        // Rule: Same vehicle cannot be parked twice at the same time
+        if (findTicketByRegNo(vehicle.getRegNo()) != null) {
+            throw new IllegalStateException("Vehicle " + vehicle.getRegNo() + " is already parked.");
+        }
+
+        // Find first available matching slot
+        for (int i = 0; i < slots.size(); i++) {
+            ParkingSlot slot = slots.get(i);
+            if (slot.canFit(vehicle)) {
+                slot.park(vehicle);
+                Ticket ticket = new Ticket(vehicle, slot);
+                activeTickets.add(ticket);
+                return ticket;
+            }
+        }
+        throw new IllegalStateException("No available slot for " + vehicle.getType());
+    }
+
+    public Ticket exitVehicle(String regNo) {
+        Ticket ticket = findTicketByRegNo(regNo);
+        if (ticket == null) {
+            throw new IllegalArgumentException("No active ticket found for " + regNo);
+        }
+
+        double rate = ticket.getVehicle().getType().equalsIgnoreCase("CAR") ? 40.0 : 20.0;
+        ticket.closeTicket(rate);
+        ticket.getSlot().removeVehicle();
+        activeTickets.remove(ticket);
+        return ticket;
+    }
+
+    public Ticket findTicketByRegNo(String regNo) {
+        for (int i = 0; i < activeTickets.size(); i++) {
+            Ticket t = activeTickets.get(i);
+            if (t.getVehicle().getRegNo().equalsIgnoreCase(regNo)) {
+                return t;
+            }
+        }
+        return null;
+    }
+}
+
+// Main class to demonstrate the objects and business rules
+public class ParkingSystem {
+    public static void main(String[] args) {
+        ParkingLot lot = new ParkingLot(2, 2);
+
+        Vehicle car1 = new Vehicle("TN10AB1234", "CAR");
+        Vehicle bike1 = new Vehicle("TN09XY5678", "BIKE");
+
+        // Park vehicles
+        Ticket t1 = lot.parkVehicle(car1);
+        System.out.println("Parked " + car1.getRegNo() + " | Slot: " + t1.getSlot().getSlotNumber() + " | Ticket #" + t1.getTicketId());
+
+        Ticket t2 = lot.parkVehicle(bike1);
+        System.out.println("Parked " + bike1.getRegNo() + " | Slot: " + t2.getSlot().getSlotNumber() + " | Ticket #" + t2.getTicketId());
+
+        // Search by registration number
+        Ticket found = lot.findTicketByRegNo("TN10AB1234");
+        if (found != null) {
+            System.out.println("Found " + found.getVehicle().getRegNo() + " at Slot " + found.getSlot().getSlotNumber());
+        }
+
+        // Exit vehicle and calculate fee
+        Ticket closed = lot.exitVehicle("TN10AB1234");
+        System.out.println("Exited " + closed.getVehicle().getRegNo() + " | Fee: Rs. " + closed.getFee());
+    }
+}
