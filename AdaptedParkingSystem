@@ -1,0 +1,215 @@
+// 1. Abstraction for Pricing Rules (keeps pricing logic modular and easy to extend)
+interface PricingRule {
+    double computeFee(int minutes, int entryHour24);
+}
+
+// 2. Abstraction for Passes (Visitor One-Day Pass)
+interface Pass {
+    boolean isValidForDay(int currentDay);
+    String getPassId();
+}
+
+class OneDayPass implements Pass {
+    private final String passId;
+    private final int validDay;
+    private final double passPrice;
+
+    public OneDayPass(String passId, int validDay, double passPrice) {
+        this.passId = passId;
+        this.validDay = validDay;
+        this.passPrice = passPrice;
+    }
+
+    @Override
+    public boolean isValidForDay(int currentDay) {
+        return this.validDay == currentDay;
+    }
+
+    @Override
+    public String getPassId() {
+        return passId;
+    }
+
+    public double getPassPrice() {
+        return passPrice;
+    }
+}
+
+// 3. Vehicle Hierarchy (Existing classes remain unchanged; new categories added via extension)
+abstract class Vehicle {
+    private final String regNo;
+    private final PricingRule pricingRule;
+
+    protected Vehicle(String regNo, PricingRule pricingRule) {
+        this.regNo = regNo.trim().toUpperCase();
+        this.pricingRule = pricingRule;
+    }
+
+    public String getRegNo() {
+        return regNo;
+    }
+
+    public double calculateFee(int minutes, int entryHour24) {
+        if (minutes <= 0) return 0.0;
+        return pricingRule.computeFee(minutes, entryHour24);
+    }
+
+    @Override
+    public String toString() {
+        return getClass().getSimpleName() + "[" + regNo + "]";
+    }
+}
+
+// Existing categories
+class Car extends Vehicle {
+    public static final double CAR_HOURLY_RATE = 30.0;
+
+    public Car(String regNo) {
+        super(regNo, (minutes, entryHour) -> {
+            int hours = (minutes + 59) / 60;
+            return hours * CAR_HOURLY_RATE;
+        });
+    }
+}
+
+class TwoWheeler extends Vehicle {
+    public TwoWheeler(String regNo) {
+        super(regNo, (minutes, entryHour) -> {
+            int hours = (minutes + 59) / 60;
+            return hours * 10.0;
+        });
+    }
+}
+
+// NEW Category 1: E-Bike (Flat fee regardless of duration)
+class EBike extends Vehicle {
+    private static final double FLAT_FEE = 15.0;
+
+    public EBike(String regNo) {
+        super(regNo, (minutes, entryHour) -> FLAT_FEE);
+    }
+}
+
+// NEW Category 2: Delivery Van (Double the Car rate during 9 AM - 5 PM, normal Car rate otherwise)
+class DeliveryVan extends Vehicle {
+    public DeliveryVan(String regNo) {
+        super(regNo, (minutes, entryHour) -> {
+            int hours = (minutes + 59) / 60;
+            boolean isPeakHours = (entryHour >= 9 && entryHour < 17);
+            double rate = isPeakHours ? (Car.CAR_HOURLY_RATE * 2) : Car.CAR_HOURLY_RATE;
+            return hours * rate;
+        });
+    }
+}
+
+// 4. ParkingTicket supporting optional One-Day Pass
+class ParkingTicket {
+    private static int nextId = 2001;
+
+    private final int ticketId;
+    private final Vehicle vehicle;
+    private final int floor;
+    private final int slot;
+    private final int entryHour24;
+    private final Pass pass; // null if regular pay-per-stay
+
+    public ParkingTicket(Vehicle vehicle, int floor, int slot, int entryHour24, Pass pass) {
+        this.ticketId = nextId++;
+        this.vehicle = vehicle;
+        this.floor = floor;
+        this.slot = slot;
+        this.entryHour24 = entryHour24;
+        this.pass = pass;
+    }
+
+    public Vehicle getVehicle() { return vehicle; }
+    public int getFloor() { return floor; }
+    public int getSlot() { return slot; }
+    public int getEntryHour24() { return entryHour24; }
+    public Pass getPass() { return pass; }
+
+    @Override
+    public String toString() {
+        return "Ticket #" + ticketId + " | " + vehicle
+                + " | Floor " + floor + ", Slot " + slot
+                + (pass != null ? " | Pass: " + pass.getPassId() : "");
+    }
+}
+
+// 5. Adapted ParkingFacility: 5-floor jagged array with varying slot counts per floor
+class ParkingFacility {
+    private final String[][] slots;
+
+    public ParkingFacility(int[] slotsPerFloor) {
+        slots = new String[slotsPerFloor.length][];
+        for (int f = 0; f < slotsPerFloor.length; f++) {
+            slots[f] = new String[slotsPerFloor[f]];
+        }
+    }
+
+    public ParkingTicket park(Vehicle vehicle, int entryHour24, Pass pass) {
+        for (int f = 0; f < slots.length; f++) {
+            for (int s = 0; s < slots[f].length; s++) {
+                if (slots[f][s] == null) {
+                    slots[f][s] = vehicle.getRegNo();
+                    return new ParkingTicket(vehicle, f, s, entryHour24, pass);
+                }
+            }
+        }
+        throw new IllegalStateException("All 5 floors are full.");
+    }
+
+    public double exit(ParkingTicket ticket, int durationMinutes, int currentDay) {
+        slots[ticket.getFloor()][ticket.getSlot()] = null;
+
+        // If visitor holds a valid one-day pass, exit fee is Rs. 0
+        if (ticket.getPass() != null && ticket.getPass().isValidForDay(currentDay)) {
+            return 0.0;
+        }
+        return ticket.getVehicle().calculateFee(durationMinutes, ticket.getEntryHour24());
+    }
+
+    public void printFloorLayout() {
+        System.out.println("--- 5-Floor Jagged Array Layout ---");
+        for (int f = 0; f < slots.length; f++) {
+            System.out.println("Floor " + f + ": " + slots[f].length + " slots");
+        }
+    }
+}
+
+// 6. Main Class: Demonstrates all changed requirements
+public class AdaptedParkingSystem {
+    public static void main(String[] args) {
+        // Extended from 3 to 5 floors with different slot counts per floor
+        ParkingFacility facility = new ParkingFacility(new int[]{2, 4, 3, 5, 1});
+        facility.printFloorLayout();
+
+        int today = 20;
+
+        System.out.println("\n=== Testing New Categories & One-Day Pass ===");
+
+        // 1. E-Bike: flat fee Rs. 15 regardless of duration (e.g., 180 mins)
+        ParkingTicket t1 = facility.park(new EBike("TN10EB1111"), 10, null);
+        System.out.println("Parked: " + t1);
+        System.out.println("Exit E-Bike (180 mins) -> Fee: Rs. " + facility.exit(t1, 180, today));
+
+        // 2. Delivery Van during Peak Hours (9 AM - 5 PM): 2 hrs * (2 * Rs. 30) = Rs. 120
+        ParkingTicket t2 = facility.park(new DeliveryVan("TN09DV2222"), 11, null);
+        System.out.println("\nParked: " + t2);
+        System.out.println("Exit DeliveryVan (120 mins, entry 11:00 AM - Peak) -> Fee: Rs. "
+                + facility.exit(t2, 120, today));
+
+        // 3. Delivery Van during Off-Peak Hours (after 5 PM): 2 hrs * Rs. 30 = Rs. 60
+        ParkingTicket t3 = facility.park(new DeliveryVan("TN09DV3333"), 18, null);
+        System.out.println("\nParked: " + t3);
+        System.out.println("Exit DeliveryVan (120 mins, entry 6:00 PM - Off-Peak) -> Fee: Rs. "
+                + facility.exit(t3, 120, today));
+
+        // 4. Visitor with a One-Day Pass (already paid Rs. 100 for the pass -> exit fee Rs. 0)
+        OneDayPass visitorPass = new OneDayPass("PASS-2026-01", today, 100.0);
+        ParkingTicket t4 = facility.park(new Car("TN01VS4444"), 10, visitorPass);
+        System.out.println("\nParked: " + t4);
+        System.out.println("Exit Visitor Car with Valid One-Day Pass (300 mins) -> Exit Fee: Rs. "
+                + facility.exit(t4, 300, today));
+    }
+}
