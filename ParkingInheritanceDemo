@@ -1,0 +1,98 @@
+// Superclass
+class Vehicle {
+    protected String regNo;
+    protected String ownerName;
+    protected double baseRate;
+
+    public Vehicle(String regNo, String ownerName, double baseRate) {
+        this.regNo = regNo;
+        this.ownerName = ownerName;
+        this.baseRate = baseRate;
+        System.out.println("  [1] Vehicle constructor executed for " + regNo);
+    }
+
+    public double calculateFee(int hours) {
+        return hours * baseRate;
+    }
+
+    public void displayInfo() {
+        System.out.println("RegNo: " + regNo + " | Owner: " + ownerName);
+    }
+}
+
+// Subclass 1 (Hierarchical Inheritance)
+class Bike extends Vehicle {
+    private boolean hasHelmetLock;
+
+    public Bike(String regNo, String ownerName, boolean hasHelmetLock) {
+        super(regNo, ownerName, 20.0); // super() for constructor
+        this.hasHelmetLock = hasHelmetLock;
+        System.out.println("  [2] Bike constructor executed");
+    }
+
+    @Override
+    public void displayInfo() {
+        super.displayInfo(); // super for method
+        System.out.println("Type: Bike | Helmet Lock: " + hasHelmetLock);
+    }
+}
+
+// Subclass 2 (Hierarchical Inheritance)
+class Car extends Vehicle {
+    protected int seatingCapacity;
+
+    public Car(String regNo, String ownerName, int seatingCapacity) {
+        super(regNo, ownerName, 40.0); // super() for constructor
+        this.seatingCapacity = seatingCapacity;
+        System.out.println("  [2] Car constructor executed");
+    }
+
+    @Override
+    public void displayInfo() {
+        super.displayInfo(); // super for method
+        System.out.println("Type: Car | Seats: " + seatingCapacity);
+    }
+}
+
+// Subclass 3 (Multilevel Inheritance: Vehicle -> Car -> ElectricCar)
+class ElectricCar extends Car {
+    private int batteryCapacityKwh;
+    private boolean needsCharging;
+
+    public ElectricCar(String regNo, String ownerName, int seatingCapacity,
+                       int batteryCapacityKwh, boolean needsCharging) {
+        super(regNo, ownerName, seatingCapacity); // calls Car -> Vehicle
+        this.batteryCapacityKwh = batteryCapacityKwh;
+        this.needsCharging = needsCharging;
+        System.out.println("  [3] ElectricCar constructor executed");
+    }
+
+    @Override
+    public double calculateFee(int hours) {
+        double parkingFee = super.calculateFee(hours); // super for method
+        double chargingFee = needsCharging ? (hours * 15.0) : 0.0;
+        return parkingFee + chargingFee;
+    }
+
+    @Override
+    public void displayInfo() {
+        super.displayInfo();
+        System.out.println("EV Details: " + batteryCapacityKwh + " kWh | Base Rate: Rs. "
+                + super.baseRate + " | Charging: " + needsCharging); // super for field
+    }
+}
+
+// Main class to trace constructor execution and test fees
+public class ParkingInheritanceDemo {
+    public static void main(String[] args) {
+        System.out.println("--- Creating ElectricCar (Multilevel Trace) ---");
+        ElectricCar ev = new ElectricCar("TN10EV9999", "Sanjay", 5, 40, true);
+        ev.displayInfo();
+        System.out.println("Total Fee for 2 hours: Rs. " + ev.calculateFee(2));
+
+        System.out.println("\n--- Creating Bike (Hierarchical Trace) ---");
+        Bike bike = new Bike("TN09BK1234", "Arun", true);
+        bike.displayInfo();
+        System.out.println("Total Fee for 2 hours: Rs. " + bike.calculateFee(2));
+    }
+}
