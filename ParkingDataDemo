@@ -1,0 +1,45 @@
+import java.util.Scanner;
+
+public class ParkingDataDemo {
+    public static void main(String[] args) {
+        Scanner sc = new Scanner(System.in);
+
+        // Jagged array: Floor 0 has 3 slots, Floor 1 has 2 slots
+        String[][] slots = new String[2][];
+        slots[0] = new String[3];
+        slots[1] = new String[2];
+
+        // Read input using Scanner
+        System.out.print("Enter Vehicle Reg No: ");
+        String vehicleNo = sc.nextLine().trim();
+
+        System.out.print("Enter Floor (0 or 1): ");
+        int floor = sc.nextInt();
+
+        System.out.print("Enter Slot Number: ");
+        int slotNo = sc.nextInt();
+
+        System.out.print("Enter Parking Duration (in minutes): ");
+        int durationMinutes = sc.nextInt();
+
+        // Store vehicle in jagged array
+        if (floor >= 0 && floor < slots.length && slotNo >= 0 && slotNo < slots[floor].length) {
+            slots[floor][slotNo] = vehicleNo;
+            System.out.println("Parked " + slots[floor][slotNo] + " at Floor " + floor + ", Slot " + slotNo);
+        } else {
+            System.out.println("Invalid floor or slot number.");
+            return;
+        }
+
+        // Billing calculation: Integer division bug vs. Correct casting
+        double ratePerHour = 40.0;
+        double wrongFee = (durationMinutes / 60) * ratePerHour;
+        double correctExactFee = ((double) durationMinutes / 60.0) * ratePerHour;
+        double correctCeilingFee = Math.ceil(durationMinutes / 60.0) * ratePerHour;
+
+        System.out.println("\n--- Fee Calculation (" + durationMinutes + " mins @ Rs. " + ratePerHour + "/hr) ---");
+        System.out.println("Wrong Fee (integer division) : Rs. " + wrongFee);
+        System.out.println("Correct Fee (exact pro-rata) : Rs. " + correctExactFee);
+        System.out.println("Correct Fee (rounded up)     : Rs. " + correctCeilingFee);
+    }
+}
