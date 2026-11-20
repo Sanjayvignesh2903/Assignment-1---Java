@@ -1,0 +1,267 @@
+import java.util.Arrays;
+
+// 1. Abstraction: Interface for EV charging capability
+interface Chargeable {
+    double chargingFee(int kWh);
+}
+
+// 2. Abstraction & Inheritance: Abstract Vehicle superclass
+abstract class Vehicle {
+    private final String regNo;
+
+    protected Vehicle(String regNo) {
+        if (regNo == null || regNo.trim().isEmpty()) {
+            throw new IllegalArgumentException("Registration number cannot be empty.");
+        }
+        this.regNo = regNo.trim().toUpperCase();
+    }
+
+    public String getRegNo() {
+        return regNo;
+    }
+
+    protected abstract double ratePerHour();
+    protected abstract double dailyMax();
+
+    // Polymorphic fee calculation (every started hour billed in full; 0 mins = Rs 0)
+    public double calculateFee(int minutes) {
+        if (minutes < 0) {
+            throw new IllegalArgumentException("Duration cannot be negative.");
+        }
+        if (minutes == 0) {
+            return 0.0;
+        }
+        int hours = (minutes + 59) / 60;
+        double fee = hours * ratePerHour();
+        return Math.min(fee, dailyMax());
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        return o instanceof Vehicle && regNo.equals(((Vehicle) o).regNo);
+    }
+
+    @Override
+    public int hashCode() {
+        return regNo.hashCode();
+    }
+
+    @Override
+    public String toString() {
+        return getClass().getSimpleName() + "[" + regNo + "]";
+    }
+}
+
+class TwoWheeler extends Vehicle {
+    public TwoWheeler(String regNo) { super(regNo); }
+    @Override protected double ratePerHour() { return 10.0; }
+    @Override protected double dailyMax() { return 60.0; }
+}
+
+class Car extends Vehicle {
+    public Car(String regNo) { super(regNo); }
+    @Override protected double ratePerHour() { return 30.0; }
+    @Override protected double dailyMax() { return 150.0; }
+}
+
+class ElectricCar extends Car implements Chargeable {
+    public ElectricCar(String regNo) { super(regNo); }
+
+    @Override
+    public double chargingFee(int kWh) {
+        if (kWh < 0) {
+            throw new IllegalArgumentException("kWh cannot be negative.");
+        }
+        return kWh * 12.0;
+    }
+}
+
+// 3. Encapsulation: ParkingTicket with static ticket counter
+class ParkingTicket {
+    private static int nextTicketId = 1001;
+
+    private final int ticketId;
+    private final Vehicle vehicle;
+    private final int floor;
+    private final int slot;
+
+    public ParkingTicket(Vehicle vehicle, int floor, int slot) {
+        this.ticketId = nextTicketId++;
+        this.vehicle = vehicle;
+        this.floor = floor;
+        this.slot = slot;
+    }
+
+    public int getTicketId() { return ticketId; }
+    public Vehicle getVehicle() { return vehicle; }
+    public int getFloor() { return floor; }
+    public int getSlot() { return slot; }
+
+    @Override
+    public String toString() {
+        return "Ticket #" + ticketId + " | " + vehicle + " | Slot [" + floor + ", " + slot + "]";
+    }
+}
+
+// 4. Core Facility Class: Jagged array for slots + Array for active tickets
+class ParkingFacility {
+    private final String[][] slots;
+    private final ParkingTicket[] activeTickets;
+    private int activeCount = 0;
+    private double totalCollection = 0.0;
+
+    public ParkingFacility(int[] slotsPerFloor) {
+        int totalCapacity = 0;
+        slots = new String[slotsPerFloor.length][];
+        for (int f = 0; f < slotsPerFloor.length; f++) {
+            slots[f] = new String[slotsPerFloor[f]];
+            totalCapacity += slotsPerFloor[f];
+        }
+        activeTickets = new ParkingTicket[totalCapacity];
+    }
+
+    // Factory helper to validate vehicle type
+    public static Vehicle createVehicle(String type, String regNo) {
+        if (type == null) throw new IllegalArgumentException("Unknown vehicle type: null");
+        switch (type.trim().toUpperCase()) {
+            case "TWOWHEELER": return new TwoWheeler(regNo);
+            case "CAR":        return new Car(regNo);
+            case "EV":         return new ElectricCar(regNo);
+            default:           throw new IllegalArgumentException("Unknown vehicle type: " + type);
+        }
+    }
+
+    public ParkingTicket park(Vehicle vehicle) {
+        // Reject duplicate registration number
+        if (findActiveTicketIndex(vehicle.getRegNo()) != -1) {
+            throw new IllegalStateException("Duplicate registration: " + vehicle.getRegNo() + " is already parked.");
+        }
+
+        // Scan jagged array floor by floor, slot by slot
+        for (int f = 0; f < slots.length; f++) {
+            for (int s = 0; s < slots[f].length; s++) {
+                if (slots[f][s] == null) {
+                    slots[f][s] = vehicle.getRegNo();
+                    ParkingTicket ticket = new ParkingTicket(vehicle, f, s);
+                    activeTickets[activeCount++] = ticket;
+                    return ticket;
+                }
+            }
+        }
+        throw new IllegalStateException("Parking facility is full.");
+    }
+
+    public double exit(String regNo, int durationMinutes, int kWhCharged) {
+        int idx = findActiveTicketIndex(regNo);
+        if (idx == -1) {
+            throw new IllegalArgumentException("Vehicle not found: " + regNo);
+        }
+
+        ParkingTicket ticket = activeTickets[idx];
+        Vehicle v = ticket.getVehicle();
+
+        // Polymorphic fee calculation
+        double fee = v.calculateFee(durationMinutes);
+        if (v instanceof Chargeable c) {
+            fee += c.chargingFee(kWhCharged);
+        }
+
+        // Free the slot and compact the activeTickets array
+        slots[ticket.getFloor()][ticket.getSlot()] = null;
+        activeTickets[idx] = activeTickets[--activeCount];
+        activeTickets[activeCount] = null;
+
+        totalCollection += fee;
+        return fee;
+    }
+
+    public String inspectSlot(int floor, int slot) {
+        if (floor < 0 || floor >= slots.length || slot < 0 || slot >= slots[floor].length) {
+            throw new IllegalArgumentException("Invalid slot position: [" + floor + ", " + slot + "]");
+        }
+        return slots[floor][slot] == null ? "FREE" : slots[floor][slot];
+    }
+
+    private int findActiveTicketIndex(String regNo) {
+        for (int i = 0; i < activeCount; i++) {
+            if (activeTickets[i].getVehicle().getRegNo().equalsIgnoreCase(regNo)) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    public double getTotalCollection() {
+        return totalCollection;
+    }
+}
+
+// 5. Main Class: Runs Normal, Boundary, Invalid, and Daily Collection Tests
+public class ParkingSystemApp {
+    public static void main(String[] args) {
+        // Facility: Floor 0 has 2 slots, Floor 1 has 1 slot (Total = 3 slots)
+        ParkingFacility facility = new ParkingFacility(new int[]{2, 1});
+
+        System.out.println("=== 1. NORMAL & BOUNDARY ENTRY TESTS ===");
+        ParkingTicket t1 = facility.park(ParkingFacility.createVehicle("TWOWHEELER", "TN01BK1001"));
+        System.out.println("Parked: " + t1);
+
+        ParkingTicket t2 = facility.park(ParkingFacility.createVehicle("CAR", "TN02CR2002"));
+        System.out.println("Parked: " + t2);
+
+        // Boundary: Last free slot [1, 0]
+        ParkingTicket t3 = facility.park(ParkingFacility.createVehicle("EV", "TN03EV3003"));
+        System.out.println("Parked (Last Free Slot): " + t3);
+
+        // Boundary: Attempt to park when facility is full
+        try {
+            facility.park(ParkingFacility.createVehicle("CAR", "TN04CR4004"));
+        } catch (IllegalStateException e) {
+            System.out.println("Full Lot Check -> " + e.getMessage());
+        }
+
+        System.out.println("\n=== 2. INVALID CASE TESTS ===");
+        // Invalid Case 1: Unknown vehicle type
+        try {
+            ParkingFacility.createVehicle("TRUCK", "TN99TR9999");
+        } catch (IllegalArgumentException e) {
+            System.out.println("Invalid Type Check -> " + e.getMessage());
+        }
+
+        // Invalid Case 2: Duplicate registration number
+        try {
+            facility.park(ParkingFacility.createVehicle("CAR", "TN02CR2002"));
+        } catch (IllegalStateException e) {
+            System.out.println("Duplicate Reg Check -> " + e.getMessage());
+        }
+
+        // Invalid Case 3: Invalid slot number
+        try {
+            facility.inspectSlot(5, 0);
+        } catch (IllegalArgumentException e) {
+            System.out.println("Invalid Slot Check -> " + e.getMessage());
+        }
+
+        System.out.println("\n=== 3. EXIT, FEE-SLAB BOUNDARY & DAILY COLLECTION ===");
+        // Normal: TwoWheeler stays 120 mins (2 hrs * Rs 10 = Rs 20.0)
+        double f1 = facility.exit("TN01BK1001", 120, 0);
+        System.out.println("Exit TN01BK1001 (120 mins) -> Rs " + f1);
+
+        // Boundary: Exact 60-min slab boundary (1 hr * Rs 30 = Rs 30.0)
+        double f2 = facility.exit("TN02CR2002", 60, 0);
+        System.out.println("Exit TN02CR2002 (60 mins exact boundary) -> Rs " + f2);
+
+        // Boundary: 61 mins (just past boundary -> 2 hrs * Rs 30 = Rs 60) + 5 kWh * Rs 12 = Rs 60 -> Rs 120.0
+        double f3 = facility.exit("TN03EV3003", 61, 5);
+        System.out.println("Exit TN03EV3003 (61 mins + 5 kWh) -> Rs " + f3);
+
+        // Boundary: Zero-minute parking (0 mins = Rs 0.0)
+        facility.park(ParkingFacility.createVehicle("CAR", "TN04CR4004"));
+        double f4 = facility.exit("TN04CR4004", 0, 0);
+        System.out.println("Exit TN04CR4004 (0 mins boundary) -> Rs " + f4);
+
+        System.out.println("\n--- Daily Collection Verification ---");
+        System.out.println("Hand Calculation : 20.0 + 30.0 + 120.0 + 0.0 = Rs 170.0");
+        System.out.println("Program Output   : Rs " + facility.getTotalCollection());
+    }
+}
