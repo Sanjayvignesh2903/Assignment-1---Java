@@ -1,0 +1,140 @@
+import java.util.ArrayList;
+import java.util.List;
+
+// 1. Vehicle class
+class Vehicle {
+    private final String regNo;
+    private final String type; // "CAR" or "BIKE"
+
+    public Vehicle(String regNo, String type) {
+        this.regNo = regNo;
+        this.type = type;
+    }
+
+    public String getRegNo() { return regNo; }
+    public String getType() { return type; }
+}
+
+// 2. ParkingTicket class: demonstrates static variables, static block, and static methods
+class ParkingTicket {
+    // Static variables: shared by ALL ParkingTicket objects (class-level data)
+    private static int nextTicketNo;
+    private static int totalActiveVehicles;
+    private static double carHourlyRate;
+    private static double bikeHourlyRate;
+
+    // Static block: runs ONCE when the class is first loaded into memory
+    static {
+        nextTicketNo = 1001;
+        totalActiveVehicles = 0;
+        carHourlyRate = 40.0;
+        bikeHourlyRate = 20.0;
+        System.out.println("[Static Block] Tariff rates and ticket counter initialized.");
+    }
+
+    // Instance variables: unique to each ticket object
+    private final int ticketNo;
+    private final Vehicle vehicle;
+    private final String gateName;
+    private boolean active;
+
+    public ParkingTicket(Vehicle vehicle, String gateName) {
+        this.ticketNo = nextTicketNo++; // Globally unique across all gates
+        this.vehicle = vehicle;
+        this.gateName = gateName;
+        this.active = true;
+        totalActiveVehicles++;          // Increment campus-wide occupancy
+    }
+
+    // Static method: accesses static state without needing an object instance
+    public static int getTotalActiveVehicles() {
+        return totalActiveVehicles;
+    }
+
+    // Static utility method: computes fee using class-level rates
+    public static double calculateFee(int minutes, String vehicleType) {
+        double hours = Math.ceil(minutes / 60.0);
+        if (hours < 1) {
+            hours = 1;
+        }
+        double rate = vehicleType.equalsIgnoreCase("CAR") ? carHourlyRate : bikeHourlyRate;
+        return hours * rate;
+    }
+
+    public void close() {
+        if (active) {
+            active = false;
+            totalActiveVehicles--;      // Decrement campus-wide occupancy
+        }
+    }
+
+    public int getTicketNo() { return ticketNo; }
+    public Vehicle getVehicle() { return vehicle; }
+    public String getGateName() { return gateName; }
+    public boolean isActive() { return active; }
+
+    @Override
+    public String toString() {
+        return "Ticket #" + ticketNo + " | " + vehicle.getRegNo()
+                + " (" + vehicle.getType() + ") | Gate: " + gateName;
+    }
+}
+
+// 3. ParkingFacility class: demonstrates passing and returning objects + object life cycle
+class ParkingFacility {
+    private final String gateName;
+    private final List<ParkingTicket> activeTickets = new ArrayList<>();
+
+    public ParkingFacility(String gateName) {
+        this.gateName = gateName;
+    }
+
+    // Passes a Vehicle object in, returns a newly created ParkingTicket object
+    public ParkingTicket enterVehicle(Vehicle v) {
+        ParkingTicket ticket = new ParkingTicket(v, gateName);
+        activeTickets.add(ticket);
+        return ticket;
+    }
+
+    // Passes a ParkingTicket object in, closes it, and removes internal reference
+    public double exitVehicle(ParkingTicket ticket, int durationMinutes) {
+        if (ticket == null || !ticket.isActive()) {
+            throw new IllegalArgumentException("Invalid or already closed ticket.");
+        }
+        double fee = ParkingTicket.calculateFee(durationMinutes, ticket.getVehicle().getType());
+        ticket.close();
+        activeTickets.remove(ticket); // Facility no longer holds a reference to this ticket
+        return fee;
+    }
+}
+
+// Main class
+public class ParkingStaticDemo {
+    public static void main(String[] args) {
+        // Two separate facilities (North Gate & South Gate)
+        ParkingFacility northGate = new ParkingFacility("North Gate");
+        ParkingFacility southGate = new ParkingFacility("South Gate");
+
+        // Create Vehicle objects and pass them into enterVehicle()
+        Vehicle v1 = new Vehicle("TN10AB1234", "CAR");
+        Vehicle v2 = new Vehicle("TN09XY5678", "BIKE");
+
+        ParkingTicket t1 = northGate.enterVehicle(v1); // Ticket #1001
+        ParkingTicket t2 = southGate.enterVehicle(v2); // Ticket #1002 (no collision across gates)
+
+        System.out.println("Issued: " + t1);
+        System.out.println("Issued: " + t2);
+        System.out.println("Total active vehicles (campus-wide): " + ParkingTicket.getTotalActiveVehicles());
+
+        // Vehicle 1 exits after 90 minutes
+        double fee1 = northGate.exitVehicle(t1, 90);
+        System.out.println("\nExited: " + t1.getVehicle().getRegNo() + " | Fee: Rs. " + fee1);
+        System.out.println("Total active vehicles after exit: " + ParkingTicket.getTotalActiveVehicles());
+
+        // Object Life Cycle: removing the last remaining reference in main()
+        // activeTickets no longer references t1, and now t1 = null makes the object
+        // completely unreachable and eligible for Garbage Collection (GC).
+        t1 = null;
+        System.out.println("Ticket #1001 reference set to null -> now eligible for Garbage Collection.");
+    }
+}
