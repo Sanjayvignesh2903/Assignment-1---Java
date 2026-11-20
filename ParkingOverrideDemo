@@ -1,0 +1,123 @@
+import java.util.HashSet;
+import java.util.Objects;
+import java.util.Set;
+
+// Superclass: demonstrates final variable, final method, and Object method overrides
+class Vehicle {
+    // final variable: registration number cannot be changed once assigned
+    protected final String regNo;
+    protected static final double GST_RATE = 0.18;
+
+    public Vehicle(String regNo) {
+        this.regNo = regNo;
+    }
+
+    public String getRegNo() {
+        return regNo;
+    }
+
+    // Method meant to be overridden by subclasses
+    public double calculateFee(int hours) {
+        return hours * 30.0; // default rate
+    }
+
+    // final method: subclasses cannot override the tax/billing formula
+    public final double calculateFinalBill(int hours) {
+        double baseFee = calculateFee(hours); // calls overridden subclass version
+        return baseFee + (baseFee * GST_RATE);
+    }
+
+    // Overriding Object.toString() for readable output
+    @Override
+    public String toString() {
+        return getClass().getSimpleName() + "[" + regNo + "]";
+    }
+
+    // Overriding Object.equals() so two Vehicles with the same regNo are equal
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (!(obj instanceof Vehicle)) return false;
+        Vehicle other = (Vehicle) obj;
+        return regNo != null && regNo.equalsIgnoreCase(other.regNo);
+    }
+
+    // Overriding Object.hashCode() to stay consistent with equals()
+    @Override
+    public int hashCode() {
+        return Objects.hash(regNo == null ? null : regNo.toUpperCase());
+    }
+}
+
+// Subclass 1: overrides calculateFee() for Bikes
+class Bike extends Vehicle {
+    public Bike(String regNo) {
+        super(regNo);
+    }
+
+    @Override
+    public double calculateFee(int hours) {
+        return hours * 20.0;
+    }
+}
+
+// Subclass 2: overrides calculateFee() for Cars
+class Car extends Vehicle {
+    public Car(String regNo) {
+        super(regNo);
+    }
+
+    @Override
+    public double calculateFee(int hours) {
+        return hours * 40.0;
+    }
+}
+
+// final class: cannot be subclassed further (e.g., locked billing/security policy)
+final class ElectricCar extends Car {
+    private final boolean needsCharging;
+
+    public ElectricCar(String regNo, boolean needsCharging) {
+        super(regNo);
+        this.needsCharging = needsCharging;
+    }
+
+    @Override
+    public double calculateFee(int hours) {
+        double parkingFee = super.calculateFee(hours);
+        double chargingFee = needsCharging ? (hours * 15.0) : 0.0;
+        return parkingFee + chargingFee;
+    }
+}
+
+// Main class to demonstrate overriding, final, and equals/hashCode
+public class ParkingOverrideDemo {
+    public static void main(String[] args) {
+        // 1. Polymorphic method overriding + final billing method
+        Vehicle[] vehicles = {
+            new Bike("TN09BK1111"),
+            new Car("TN10CR2222"),
+            new ElectricCar("TN10EV3333", true)
+        };
+
+        System.out.println("--- Overridden Fee & Final Bill (2 Hours) ---");
+        for (int i = 0; i < vehicles.length; i++) {
+            Vehicle v = vehicles[i];
+            System.out.printf("%s -> Base Fee: Rs. %.2f | Final Bill (+18%% GST): Rs. %.2f%n",
+                    v, v.calculateFee(2), v.calculateFinalBill(2));
+        }
+
+        // 2. Demonstrating equals() and hashCode() with same registration number
+        Vehicle c1 = new Car("TN10AB1234");
+        Vehicle c2 = new Car("tn10ab1234");
+
+        System.out.println("\n--- Object Equality Check ---");
+        System.out.println("c1.equals(c2): " + c1.equals(c2));
+        System.out.println("c1.hashCode() == c2.hashCode(): " + (c1.hashCode() == c2.hashCode()));
+
+        Set<Vehicle> parkedSet = new HashSet<>();
+        parkedSet.add(c1);
+        parkedSet.add(c2); // Duplicate regNo is rejected automatically
+        System.out.println("Unique vehicles in HashSet: " + parkedSet.size() + " -> " + parkedSet);
+    }
+}
