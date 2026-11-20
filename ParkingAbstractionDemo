@@ -1,0 +1,98 @@
+// Interface 1: Capability for EVs (includes abstract, default, and static methods)
+interface Chargeable {
+    double chargingFee(int kWh);
+
+    // Default method: provides a shared implementation subclasses can optionally override
+    default String getChargingStandard() {
+        return "Type-2 AC Fast Charger";
+    }
+
+    // Static method: utility helper belonging to the interface itself
+    static double getUnitPrice() {
+        return 12.0; // Rs. 12 per kWh
+    }
+}
+
+// Interface 2: Capability for any entity that can generate a payable bill
+interface Payable {
+    double generateBill(int minutes);
+}
+
+// Abstract class: defines common state (regNo), constructor, and template billing logic
+abstract class Vehicle implements Payable {
+    private final String regNo;
+
+    protected Vehicle(String regNo) {
+        this.regNo = regNo;
+    }
+
+    public String getRegNo() {
+        return regNo;
+    }
+
+    // Abstract method: each concrete vehicle must define its own hourly rate
+    protected abstract double ratePerHour();
+
+    // Concrete method shared by all subclasses
+    public double calculateParkingFee(int minutes) {
+        if (minutes <= 0) {
+            return 0.0;
+        }
+        int hours = (minutes + 59) / 60;
+        return hours * ratePerHour();
+    }
+
+    @Override
+    public double generateBill(int minutes) {
+        return calculateParkingFee(minutes);
+    }
+}
+
+// Concrete subclass 1: inherits Vehicle (Payable)
+class Bike extends Vehicle {
+    public Bike(String regNo) {
+        super(regNo);
+    }
+
+    @Override
+    protected double ratePerHour() {
+        return 15.0;
+    }
+}
+
+// Concrete subclass 2: inherits Vehicle AND implements Chargeable (multiple behaviours)
+class ElectricCar extends Vehicle implements Chargeable {
+    private final int kWhConsumed;
+
+    public ElectricCar(String regNo, int kWhConsumed) {
+        super(regNo);
+        this.kWhConsumed = kWhConsumed;
+    }
+
+    @Override
+    protected double ratePerHour() {
+        return 40.0;
+    }
+
+    @Override
+    public double chargingFee(int kWh) {
+        return kWh * Chargeable.getUnitPrice();
+    }
+
+    @Override
+    public double generateBill(int minutes) {
+        return calculateParkingFee(minutes) + chargingFee(kWhConsumed);
+    }
+}
+
+// Main class
+public class ParkingAbstractionDemo {
+    public static void main(String[] args) {
+        Vehicle bike = new Bike("TN09BK1111");
+        ElectricCar ev = new ElectricCar("TN10EV2222", 10);
+
+        System.out.println("Bike " + bike.getRegNo() + " Bill (90 mins): Rs. " + bike.generateBill(90));
+        System.out.println("EV " + ev.getRegNo() + " Charger: " + ev.getChargingStandard());
+        System.out.println("EV " + ev.getRegNo() + " Bill (90 mins + 10 kWh): Rs. " + ev.generateBill(90));
+    }
+}
