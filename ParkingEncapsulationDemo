@@ -1,0 +1,143 @@
+import java.util.ArrayList;
+import java.util.List;
+
+// Logical Package: parking.model
+class ParkingTicket {
+    // private: protects internal state from direct external tampering
+    private String regNo;
+    private int slotNumber;
+    private int durationMinutes;
+
+    // protected: accessible to subclasses (e.g., VipParkingTicket) and same package
+    protected double hourlyRate = 40.0;
+
+    // default (package-private): only internal package classes/services can inspect or update
+    boolean audited = false;
+
+    public ParkingTicket(String regNo, int slotNumber, int durationMinutes) {
+        setRegNo(regNo);
+        setSlotNumber(slotNumber);
+        setDurationMinutes(durationMinutes);
+    }
+
+    // public getters & validating setters
+    public String getRegNo() {
+        return regNo;
+    }
+
+    public void setRegNo(String regNo) {
+        if (regNo == null || regNo.trim().isEmpty()) {
+            throw new IllegalArgumentException("Registration number cannot be empty.");
+        }
+        this.regNo = regNo.trim().toUpperCase();
+    }
+
+    public int getSlotNumber() {
+        return slotNumber;
+    }
+
+    public void setSlotNumber(int slotNumber) {
+        if (slotNumber < 1 || slotNumber > 500) {
+            throw new IllegalArgumentException("Invalid slot number: " + slotNumber + " (must be 1–500).");
+        }
+        this.slotNumber = slotNumber;
+    }
+
+    public int getDurationMinutes() {
+        return durationMinutes;
+    }
+
+    public void setDurationMinutes(int durationMinutes) {
+        if (durationMinutes < 0) {
+            throw new IllegalArgumentException("Duration cannot be negative: " + durationMinutes);
+        }
+        this.durationMinutes = durationMinutes;
+    }
+
+    // protected method for subclasses to customize fee logic
+    protected double calculateFee() {
+        if (durationMinutes == 0) return 0.0;
+        int hours = (durationMinutes + 59) / 60;
+        return hours * hourlyRate;
+    }
+
+    // default (package-private) helper
+    void markAudited() {
+        this.audited = true;
+    }
+
+    @Override
+    public String toString() {
+        return "Ticket[Reg=" + regNo + ", Slot=" + slotNumber
+                + ", Mins=" + durationMinutes + ", Fee=Rs." + calculateFee()
+                + ", Audited=" + audited + "]";
+    }
+}
+
+// Subclass accessing 'protected' member
+class StaffParkingTicket extends ParkingTicket {
+    public StaffParkingTicket(String regNo, int slotNumber, int durationMinutes) {
+        super(regNo, slotNumber, durationMinutes);
+        this.hourlyRate = 10.0; // allowed because hourlyRate is protected
+    }
+}
+
+// Logical Package: parking.service
+class ParkingService {
+    // Uses Wrapper class (Integer) in a collection -> triggers autoboxing/unboxing
+    private final List<Integer> occupiedSlots = new ArrayList<>();
+
+    public void registerTicket(ParkingTicket ticket) {
+        Integer slotObj = ticket.getSlotNumber(); // autoboxing: int -> Integer
+
+        // Safe wrapper comparison using .equals() instead of ==
+        for (Integer occupied : occupiedSlots) {
+            if (occupied.equals(slotObj)) {
+                throw new IllegalStateException("Slot " + slotObj + " is already occupied.");
+            }
+        }
+        occupiedSlots.add(slotObj);
+        ticket.markAudited(); // accessible via package-private modifier
+    }
+}
+
+// Logical Package: parking.app
+public class ParkingEncapsulationDemo {
+    public static void main(String[] args) {
+        ParkingService service = new ParkingService();
+
+        // 1. Valid encapsulated objects
+        ParkingTicket t1 = new ParkingTicket("tn10ab1234", 200, 90);
+        StaffParkingTicket t2 = new StaffParkingTicket("TN09XY5678", 12, 90);
+        service.registerTicket(t1);
+        service.registerTicket(t2);
+
+        System.out.println(t1);
+        System.out.println(t2);
+
+        // 2. Setter validation rejecting invalid data
+        System.out.println("\n--- Setter Validation Tests ---");
+        try {
+            t1.setDurationMinutes(-30);
+        } catch (IllegalArgumentException e) {
+            System.out.println("Rejected negative duration -> " + e.getMessage());
+        }
+
+        try {
+            t1.setSlotNumber(999);
+        } catch (IllegalArgumentException e) {
+            System.out.println("Rejected invalid slot -> " + e.getMessage());
+        }
+
+        // 3. Wrapper Class & Autoboxing Risk Demonstration (== vs .equals())
+        System.out.println("\n--- Wrapper Class & Autoboxing Risk ---");
+        Integer slotA = 100; // within Integer cache (-128 to 127)
+        Integer slotB = 100;
+        Integer slotC = 200; // outside Integer cache
+        Integer slotD = 200;
+
+        System.out.println("100 == 100 (cached): " + (slotA == slotB));             // true
+        System.out.println("200 == 200 (uncached BUG): " + (slotC == slotD));       // false!
+        System.out.println("200.equals(200) (CORRECT): " + slotC.equals(slotD));    // true
+    }
+}
